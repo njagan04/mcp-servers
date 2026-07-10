@@ -1,20 +1,49 @@
-# Nexus ADF MCP server (Claude Desktop)
+# Nexus ADF MCP Server
 
-Standalone MCP stdio server exposing Azure Data Factory diagnostic and self-remediation tools to Claude Desktop. Given a failing pipeline, it walks Claude through diagnosing the actual root cause (activity errors, run history, raw pipeline/dataset/linked-service/data-flow definitions), proposing a fix, applying it with human approval, and rolling back automatically if verification shows it didn't work. Every checkpoint (pipeline, dataset, linked service, data flow, global parameter) is snapshotted before a mutating change, so nothing destructive is ever unrecoverable. Self-contained — has its own `.venv` and `.env`, no dependency on any other folder.
+**Standalone MCP stdio server exposing Azure Data Factory diagnostic and self-remediation tools to Claude Desktop.**
+
+Given a failing pipeline, it walks Claude through diagnosing the actual root cause (activity errors, run history, raw pipeline/dataset/linked-service/data-flow definitions), proposing a fix, applying it with human approval, and rolling back automatically if verification shows it didn't work.
+
+- 🔍 **Diagnose first** — evidence-driven root-cause analysis before any fix is proposed
+- ✅ **Human-in-the-loop** — every mutating call requires explicit approval with a stated reason
+- ⏪ **Always reversible** — every checkpoint (pipeline, dataset, linked service, data flow, global parameter) is snapshotted before a mutating change, so nothing destructive is ever unrecoverable
+- 📦 **Self-contained** — has its own `.venv` and `.env`, no dependency on any other folder
+
+---
+
+## Contents
+
+- [Setup](#setup)
+- [Register with Claude Desktop](#register-with-claude-desktop)
+- [Configure permissions in Claude Desktop](#configure-permissions-in-claude-desktop)
+- [Instructions](#instructions)
+- [Tools](#tools) — 55 tools across 7 categories
+- [Structure](#structure)
+
+---
 
 ## Setup
 
-```
+```bash
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-
+copy .env.example .env
 ```
 
-Fill in `.env` with the target factory's service principal credentials (`ADF_TENANT_ID`, `ADF_CLIENT_ID`, `ADF_CLIENT_SECRET`, `ADF_SUBSCRIPTION_ID`, `ADF_RESOURCE_GROUP`, `ADF_FACTORY_NAME`).
+Fill in `.env` with the target factory's service principal credentials:
+
+| Variable | Description |
+|---|---|
+| `ADF_TENANT_ID` | Azure AD tenant ID |
+| `ADF_CLIENT_ID` | Service principal client ID |
+| `ADF_CLIENT_SECRET` | Service principal client secret |
+| `ADF_SUBSCRIPTION_ID` | Azure subscription ID |
+| `ADF_RESOURCE_GROUP` | Resource group containing the factory |
+| `ADF_FACTORY_NAME` | Target Data Factory name |
 
 ## Register with Claude Desktop
 
-In Claude Desktop's `claude_desktop_config.json`, point at this folder's venv interpreter and `mcp_adf/server.py`:
+In Claude Desktop's `claude_desktop_config.json`, point at this folder's venv interpreter and `mcp_adf/server.py` (add this alongside your existing config, don't replace it):
 
 ```json
 {
@@ -26,29 +55,33 @@ In Claude Desktop's `claude_desktop_config.json`, point at this folder's venv in
         "PYTHONPATH": "C:\\ABSOLUTE\\PATH\\TO\\THIS\\FOLDER"
       }
     }
-  },
-  ...claude's default settigs
+  }
 }
 ```
 
-Use absolute paths — relative paths are not resolved reliably by Claude Desktop's launcher. `PYTHONPATH` is required so `server.py`'s `from mcp_adf import ...` imports resolve when Claude Desktop launches the script directly (its own cwd isn't this folder).
+> **Note:** Use absolute paths — relative paths are not resolved reliably by Claude Desktop's launcher. `PYTHONPATH` is required so `server.py`'s `from mcp_adf import ...` imports resolve when Claude Desktop launches the script directly (its own cwd isn't this folder).
 
 ## Configure permissions in Claude Desktop
 
 After adding the server to `claude_desktop_config.json` and restarting Claude Desktop, go to **Settings → Connectors → nexus-adf** and set:
 
-- **Read-only tools** (`list_*`, `get_*`) — **Always Allow**. These can't mutate anything (`readOnlyHint=True`), so approving them per-call adds friction with no safety benefit.
-- **Write/delete tools** (`create_*`, `update_*`, `rerun_*`, `rollback_*`, `back_*`, `forward_*`, `start_*`, `stop_*`, `cancel_*`) — leave these on **Ask every time**. Every one of these surfaces a native approval dialog showing the tool's `reason` argument before it runs, per the workflow the server enforces (see [Instructions](#instructions) below).
-- Under **Capabilities**, enable **Generate memory from chat history** — lets Claude carry diagnosis context (e.g. recurring failure patterns for a given pipeline) across sessions.
-- Set **Tool access mode** to **Tools already loaded**.
+| Setting | Value | Why |
+|---|---|---|
+| Read-only tools (`list_*`, `get_*`) | **Always Allow** | Can't mutate anything (`readOnlyHint=True`) — approving per-call adds friction with no safety benefit |
+| Write/delete tools (`create_*`, `update_*`, `rerun_*`, `rollback_*`, `back_*`, `forward_*`, `start_*`, `stop_*`, `cancel_*`) | **Ask every time** | Each surfaces a native approval dialog showing the tool's `reason` argument before it runs (see [Instructions](#instructions)) |
+| Capabilities → Generate memory from chat history | **Enabled** | Lets Claude carry diagnosis context (e.g. recurring failure patterns for a given pipeline) across sessions |
+| Tool access mode | **Tools already loaded** | |
 
 ## Instructions
 
 The server ships its own instructions to Claude automatically (`mcp_adf/server.py`'s `_INSTRUCTIONS`, passed to the `Server(...)` constructor) — no manual copy-paste is needed for the MCP connection itself.
 
-If you're instead setting this up as a **Claude Desktop Project** (Projects → New Project), paste the same instructions into the project's instructions field so Claude follows the diagnose-propose-execute-verify workflow there too, and upload the team's SOP doc(s) into the project's context:
+If you're instead setting this up as a **Claude Desktop Project** (Projects → New Project), paste the same instructions into the project's instructions field so Claude follows the diagnose → propose → execute → verify workflow there too, and upload the team's SOP doc(s) into the project's context:
 
-```
+<details>
+<summary><strong>Show instructions text</strong></summary>
+
+```text
 This server exposes Azure Data Factory diagnostic and self-remediation tools. Follow this
 workflow for every failure investigation — don't skip straight to a fix.
 
@@ -81,11 +114,14 @@ re-applies a change after stepping back from it. None of these delete history �
 checkpoint stays reachable.
 ```
 
+</details>
+
 ## Tools
 
-55 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop) above).
+55 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop)).
 
-### Pipelines
+<details open>
+<summary><strong>Pipelines</strong> (18 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -108,7 +144,10 @@ checkpoint stays reachable.
 | `back_pipeline_definition` | mutating | Step one checkpoint back (like `git checkout HEAD~1`). |
 | `forward_pipeline_definition` | mutating | Step one checkpoint forward after a `back_*` call. |
 
-### Triggers
+</details>
+
+<details>
+<summary><strong>Triggers</strong> (7 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -120,7 +159,10 @@ checkpoint stays reachable.
 | `rerun_trigger_run` | mutating | Rerun a specific trigger run (tumbling-window/event triggers `rerun_pipeline` can't reach). |
 | `cancel_trigger_run` | mutating | Cancel a specific in-progress trigger run. |
 
-### Linked services
+</details>
+
+<details>
+<summary><strong>Linked services</strong> (8 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -133,7 +175,10 @@ checkpoint stays reachable.
 | `back_linked_service_definition` | mutating | Step one checkpoint back. |
 | `forward_linked_service_definition` | mutating | Step one checkpoint forward. |
 
-### Datasets
+</details>
+
+<details>
+<summary><strong>Datasets</strong> (7 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -145,7 +190,10 @@ checkpoint stays reachable.
 | `back_dataset_definition` | mutating | Step one checkpoint back. |
 | `forward_dataset_definition` | mutating | Step one checkpoint forward. |
 
-### Data flows
+</details>
+
+<details>
+<summary><strong>Data flows</strong> (6 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -156,7 +204,10 @@ checkpoint stays reachable.
 | `back_data_flow_definition` | mutating | Step one checkpoint back. |
 | `forward_data_flow_definition` | mutating | Step one checkpoint forward. |
 
-### Global parameters
+</details>
+
+<details>
+<summary><strong>Global parameters</strong> (7 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
@@ -168,34 +219,52 @@ checkpoint stays reachable.
 | `back_global_parameter_definition` | mutating | Step one checkpoint back. |
 | `forward_global_parameter_definition` | mutating | Step one checkpoint forward. |
 
-### Integration runtimes
+</details>
+
+<details>
+<summary><strong>Integration runtimes</strong> (2 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
 | `get_integration_runtime_status` | read-only | An IR's state — works for Azure, self-hosted, and Azure-SSIS types. Check before `start_integration_runtime`. |
 | `start_integration_runtime` | mutating | Start a stopped **Azure-SSIS (managed)** IR. Does not work on self-hosted IRs — no remote-start API exists; that's human-only. |
 
+</details>
+
 ## Structure
 
-```
-mcp_adf/                the MCP server package
-  server.py               MCP entrypoint, stdio transport, tool dispatch
-  auth.py                 service-principal auth / ADF client construction
-  audit.py                audit-log writer (project/_logs/)
-  tools/                  tool implementations, one module per ADF resource kind
-    _shared.py              shared helpers (client construction, wire-dict conversion, miscased-key checks)
-    _checkpoints.py          snapshot/rollback/back/forward engine, shared by every resource kind
-    pipelines.py, triggers.py, linked_services.py, datasets.py,
-    data_flows.py, global_parameters.py, integration_runtimes.py
-    __init__.py              assembles TOOL_REGISTRY from the modules above
-  schemas/                MCP tool-schema definitions, mirroring tools/ by resource kind
-    pipelines.py, triggers.py, linked_services.py, datasets.py,
-    data_flows.py, global_parameters.py, integration_runtimes.py
-    __init__.py              assembles the schema list server.py exposes via list_tools()
-project/_snapshot/      pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
-project/_logs/          audit log of tool calls, one dated folder per day (gitignored, created at runtime)
-docs/TEST_ADF_CONTEXT.md  living design/decision doc for this R&D effort — read before making changes
-.env                    real credentials (gitignored, never commit)
-.env.example            template — copy to .env
-requirements.txt        pinned dependencies
+```text
+mcp_adf/                         the MCP server package
+├── server.py                    MCP entrypoint, stdio transport, tool dispatch
+├── auth.py                      service-principal auth / ADF client construction
+├── audit.py                     audit-log writer (project/_logs/)
+├── tools/                       tool implementations, one module per ADF resource kind
+│   ├── _shared.py               shared helpers (client construction, wire-dict conversion, miscased-key checks)
+│   ├── _checkpoints.py          snapshot/rollback/back/forward engine, shared by every resource kind
+│   ├── pipelines.py             pipeline tools — list/get/create/update/rerun/cancel, snapshot/rollback/back/forward
+│   ├── triggers.py              trigger tools — list/get/start/stop/rerun/cancel, run history
+│   ├── linked_services.py       linked-service tools — list/get/update, snapshot/rollback/back/forward
+│   ├── datasets.py              dataset tools — list/get/update, snapshot/rollback/back/forward
+│   ├── data_flows.py            data-flow tools — get/update, snapshot/rollback/back/forward
+│   ├── global_parameters.py     global-parameter tools — list/get/update, snapshot/rollback/back/forward
+│   ├── integration_runtimes.py  integration-runtime tools — get status/start
+│   └── __init__.py              assembles TOOL_REGISTRY from the modules above
+└── schemas/                     MCP tool-schema definitions, mirroring tools/ by resource kind
+    ├── pipelines.py             schema for pipeline tools
+    ├── triggers.py              schema for trigger tools
+    ├── linked_services.py       schema for linked-service tools
+    ├── datasets.py              schema for dataset tools
+    ├── data_flows.py            schema for data-flow tools
+    ├── global_parameters.py     schema for global-parameter tools
+    ├── integration_runtimes.py  schema for integration-runtime tools
+    └── __init__.py              assembles the schema list server.py exposes via list_tools()
+
+project/
+├── _snapshot/                   pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
+└── _logs/                       audit log of tool calls, one dated folder per day (gitignored, created at runtime)
+
+docs/TEST_ADF_CONTEXT.md         living design/decision doc for this R&D effort — read before making changes
+.env                             real credentials (gitignored, never commit)
+.env.example                     template — copy to .env
+requirements.txt                 pinned dependencies
 ```
