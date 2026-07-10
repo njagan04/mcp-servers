@@ -17,7 +17,7 @@ Given a failing pipeline, it walks Claude through diagnosing the actual root cau
 - [Register with Claude Desktop](#register-with-claude-desktop)
 - [Configure permissions in Claude Desktop](#configure-permissions-in-claude-desktop)
 - [Instructions](#instructions)
-- [Tools](#tools) — 55 tools across 7 categories
+- [Tools](#tools) — 62 tools across 7 categories
 - [Structure](#structure)
 
 ---
@@ -118,7 +118,7 @@ checkpoint stays reachable.
 
 ## Tools
 
-55 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop)).
+62 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop)).
 
 <details open>
 <summary><strong>Pipelines</strong> (18 tools)</summary>
@@ -147,28 +147,35 @@ checkpoint stays reachable.
 </details>
 
 <details>
-<summary><strong>Triggers</strong> (7 tools)</summary>
+<summary><strong>Triggers</strong> (13 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
 | `list_triggers` | read-only | Factory-wide sweep — every trigger's name, type, runtime state. |
 | `get_trigger` | read-only | One trigger's runtime state (Started/Stopped/Disabled). |
 | `get_trigger_run_history` | read-only | Trigger-run history — needed for tumbling-window/event triggers, where the trigger run (not the pipeline run it invokes) is the unit that fails/reruns/cancels. |
+| `create_trigger` | mutating | Create a brand-new trigger (e.g. a ScheduleTrigger); fails if the name already exists. Created Stopped. |
+| `update_trigger_definition` | mutating | Overwrite a trigger's full definition to apply a fix (e.g. correct a schedule). |
 | `start_trigger` | mutating | Start a stopped/disabled trigger. |
 | `stop_trigger` | mutating | Stop a running trigger. |
 | `rerun_trigger_run` | mutating | Rerun a specific trigger run (tumbling-window/event triggers `rerun_pipeline` can't reach). |
 | `cancel_trigger_run` | mutating | Cancel a specific in-progress trigger run. |
+| `list_trigger_snapshots` | read-only | List named checkpoints in a trigger's history. |
+| `rollback_trigger_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_trigger_definition` | mutating | Step one checkpoint back. |
+| `forward_trigger_definition` | mutating | Step one checkpoint forward. |
 
 </details>
 
 <details>
-<summary><strong>Linked services</strong> (8 tools)</summary>
+<summary><strong>Linked services</strong> (9 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
 | `list_linked_services` | read-only | Factory-wide sweep of linked services. |
 | `get_linked_service` | read-only | Name and type only — no connection details. |
 | `get_linked_service_definition_raw` | read-only | Full definition including the real host/port/connection string. Diagnosis tool for network/config failures, and the editable input to `update_linked_service_definition`. |
+| `create_linked_service` | mutating | Create a brand-new linked service; fails if the name already exists. |
 | `update_linked_service_definition` | mutating | Overwrite a linked service's full definition (e.g. fix a wrong host/port). |
 | `list_linked_service_snapshots` | read-only | List named checkpoints in a linked service's history. |
 | `rollback_linked_service_definition` | mutating | Jump to a specific named checkpoint. |
@@ -260,8 +267,8 @@ mcp_adf/                         the MCP server package
 │   └── __init__.py              assembles the schema list server.py exposes via list_tools()
 │
 project/
-├── _snapshot/                   pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
-└── _logs/                       audit log of tool calls, one dated folder per day (gitignored, created at runtime)
+    ├── _snapshot/               pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
+    └── _logs/                   audit log of tool calls, one dated folder per day (gitignored, created at runtime)
 
 docs/TEST_ADF_CONTEXT.md         living design/decision doc for this R&D effort — read before making changes
 .env                             real credentials (gitignored, never commit)
