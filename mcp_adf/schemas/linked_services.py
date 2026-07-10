@@ -2,6 +2,36 @@ from mcp.types import Tool, ToolAnnotations
 
 TOOLS = [
     Tool(
+        name="create_linked_service",
+        description=(
+            "Creates a brand-new linked service. Fails with an explicit error if a linked service with "
+            "this name already exists — use update_linked_service_definition to modify an existing one "
+            "instead. Pushes a \"did not exist\" marker onto this linked service's history stack, so "
+            "rollback_linked_service_definition can undo the creation (delete it) later. `definition` "
+            "should be the same flat shape get_linked_service_definition_raw/update_linked_service_definition use."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "service_name": {"type": "string"},
+                "definition": {
+                    "type": "object",
+                    "description": "Linked service definition JSON — flat shape (type, typeProperties, ...).",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this linked service is being created — shown to the user in the approval dialog.",
+                },
+                "state_name": {
+                    "type": "string",
+                    "description": "Optional name for the created state. Defaults to \"created\" if omitted.",
+                },
+            },
+            "required": ["service_name", "definition", "reason"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    ),
+    Tool(
         name="get_linked_service",
         description=(
             "Name and type only (e.g. \"AzureSqlDatabase\") — does NOT include the actual "

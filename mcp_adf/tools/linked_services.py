@@ -1,7 +1,60 @@
+from azure.core.exceptions import ResourceNotFoundError
 from azure.mgmt.datafactory.models import LinkedServiceResource
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
 from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_wire_dict
+
+
+def create_linked_service(
+    service_name: str, factory_name: str,
+    subscription_id: str, resource_group: str,
+    tenant_id: str, client_id: str, client_secret: str,
+    definition: dict,
+    reason: str,
+    state_name: str | None = None,
+) -> dict:
+    """
+    Creates a brand-new linked service. Fails with an explicit error if a linked service
+    with this name already exists — use update_linked_service_definition to modify an
+    existing one instead. Records two checkpoints in this linked service's history:
+    "before-creation" (it didn't exist — rollback here deletes it) and one for the
+    just-created content, named `state_name` if given (default "created") — so
+    list_linked_service_snapshots and rollback_linked_service_definition work on it from
+    the start, same as any updated linked service. `definition` should be the same flat
+    shape get_linked_service_definition_raw/update_linked_service_definition use.
+    """
+    client = _client(tenant_id, client_id, client_secret, subscription_id)
+
+    try:
+        client.linked_services.get(resource_group, factory_name, service_name)
+        return {"error": "linked_service_already_exists", "service_name": service_name}
+    except ResourceNotFoundError:
+        pass
+
+    _push_snapshot(
+        "linkedservice", factory_name, service_name,
+        definition=None, reason=reason, change_summary="linked service did not exist",
+        state_name="before-creation", action="create",
+    )
+
+    linked_service_resource = LinkedServiceResource.deserialize({"properties": definition})
+    error = _reject_if_miscased(linked_service_resource, "linked service")
+    if error:
+        return error
+    created = client.linked_services.create_or_update(resource_group, factory_name, service_name, linked_service_resource)
+
+    saved = _push_snapshot(
+        "linkedservice", factory_name, service_name,
+        definition=_to_wire_dict(created), reason=reason, change_summary="linked service created",
+        state_name=state_name or "created",
+    )
+    return {
+        "service_name": service_name,
+        "created": True,
+        "reason": reason,
+        "saved_state_name": saved["state_name"],
+        "etag": created.etag,
+    }
 
 
 def get_linked_service(
