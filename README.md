@@ -81,10 +81,117 @@ re-applies a change after stepping back from it. None of these delete history �
 checkpoint stays reachable.
 ```
 
+## Tools
+
+55 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop) above).
+
+### Pipelines
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `list_pipelines` | read-only | List all pipeline names in the factory. |
+| `get_pipeline_definition` | read-only | Activity graph (names/types/ExecutePipeline refs) only — no timeout/query/dataset detail. |
+| `get_pipeline_definition_raw` | read-only | Full definition — typeProperties, queries, dataset/linked-service refs, timeout/retry policy. The evidence tool for diagnosis, and the editable input to `update_pipeline_definition`. |
+| `get_pipeline_run_status` | read-only | Current status of one specific run (freshness check before rerun). |
+| `get_pipeline_run_history` | read-only | Recent runs for **one** pipeline. |
+| `list_pipeline_runs` | read-only | Recent runs across **the whole factory** in a time window — matches ADF Studio's Monitor tab ("last 24 hours"). |
+| `get_activity_run_history` | read-only | Aggregated failure counts/last error code per activity across recent runs. |
+| `get_activity_run_error` | read-only | Error detail for the most recent failed run of a pipeline — usually the diagnosis starting point. |
+| `list_activity_runs` | read-only | Every activity in one specific run (name/type/status/timing/activity_run_id), no input/output payload. |
+| `get_activity_run_io` | read-only | Full resolved input/output payload for one specific activity run. |
+| `create_pipeline` | mutating | Create a brand-new pipeline; fails if the name already exists. |
+| `update_pipeline_definition` | mutating | Overwrite a pipeline's full definition to apply a fix. |
+| `rerun_pipeline` | mutating | Trigger a new run. |
+| `cancel_pipeline_run` | mutating | Cancel a running/hung run. |
+| `list_pipeline_snapshots` | read-only | List named checkpoints in a pipeline's history. |
+| `rollback_pipeline_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_pipeline_definition` | mutating | Step one checkpoint back (like `git checkout HEAD~1`). |
+| `forward_pipeline_definition` | mutating | Step one checkpoint forward after a `back_*` call. |
+
+### Triggers
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `list_triggers` | read-only | Factory-wide sweep — every trigger's name, type, runtime state. |
+| `get_trigger` | read-only | One trigger's runtime state (Started/Stopped/Disabled). |
+| `get_trigger_run_history` | read-only | Trigger-run history — needed for tumbling-window/event triggers, where the trigger run (not the pipeline run it invokes) is the unit that fails/reruns/cancels. |
+| `start_trigger` | mutating | Start a stopped/disabled trigger. |
+| `stop_trigger` | mutating | Stop a running trigger. |
+| `rerun_trigger_run` | mutating | Rerun a specific trigger run (tumbling-window/event triggers `rerun_pipeline` can't reach). |
+| `cancel_trigger_run` | mutating | Cancel a specific in-progress trigger run. |
+
+### Linked services
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `list_linked_services` | read-only | Factory-wide sweep of linked services. |
+| `get_linked_service` | read-only | Name and type only — no connection details. |
+| `get_linked_service_definition_raw` | read-only | Full definition including the real host/port/connection string. Diagnosis tool for network/config failures, and the editable input to `update_linked_service_definition`. |
+| `update_linked_service_definition` | mutating | Overwrite a linked service's full definition (e.g. fix a wrong host/port). |
+| `list_linked_service_snapshots` | read-only | List named checkpoints in a linked service's history. |
+| `rollback_linked_service_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_linked_service_definition` | mutating | Step one checkpoint back. |
+| `forward_linked_service_definition` | mutating | Step one checkpoint forward. |
+
+### Datasets
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `list_datasets` | read-only | Factory-wide sweep — name, type, backing linked service. |
+| `get_dataset_definition_raw` | read-only | Full definition (schema, structure, linked-service ref, parameters) — the evidence for schema-drift diagnosis, and the editable input to `update_dataset_definition`. |
+| `update_dataset_definition` | mutating | Overwrite a dataset's full definition (e.g. correct a drifted schema). |
+| `list_dataset_snapshots` | read-only | List named checkpoints in a dataset's history. |
+| `rollback_dataset_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_dataset_definition` | mutating | Step one checkpoint back. |
+| `forward_dataset_definition` | mutating | Step one checkpoint forward. |
+
+### Data flows
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `get_data_flow_definition` | read-only | Full Mapping Data Flow definition (sources, sinks, transformation script) — the only way to see inside the transformation graph itself. |
+| `update_data_flow_definition` | mutating | Overwrite a data flow's full definition to apply a fix. |
+| `list_data_flow_snapshots` | read-only | List named checkpoints in a data flow's history. |
+| `rollback_data_flow_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_data_flow_definition` | mutating | Step one checkpoint back. |
+| `forward_data_flow_definition` | mutating | Step one checkpoint forward. |
+
+### Global parameters
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `list_global_parameters` | read-only | Factory-wide sweep — name, type, value of every global parameter. |
+| `get_global_parameter_definition_raw` | read-only | Full `{"type", "value"}` definition — the editable input to `update_global_parameter_definition`. |
+| `update_global_parameter_definition` | mutating | Overwrite a global parameter's type/value (e.g. fix a stale connection string or flipped env flag). |
+| `list_global_parameter_snapshots` | read-only | List named checkpoints in a global parameter's history. |
+| `rollback_global_parameter_definition` | mutating | Jump to a specific named checkpoint. |
+| `back_global_parameter_definition` | mutating | Step one checkpoint back. |
+| `forward_global_parameter_definition` | mutating | Step one checkpoint forward. |
+
+### Integration runtimes
+
+| Tool | Type | What it's for |
+|---|---|---|
+| `get_integration_runtime_status` | read-only | An IR's state — works for Azure, self-hosted, and Azure-SSIS types. Check before `start_integration_runtime`. |
+| `start_integration_runtime` | mutating | Start a stopped **Azure-SSIS (managed)** IR. Does not work on self-hosted IRs — no remote-start API exists; that's human-only. |
+
 ## Structure
 
 ```
-mcp_adf/                the MCP server package (server.py, tools.py, auth.py)
+mcp_adf/                the MCP server package
+  server.py               MCP entrypoint, stdio transport, tool dispatch
+  auth.py                 service-principal auth / ADF client construction
+  audit.py                audit-log writer (project/_logs/)
+  tools/                  tool implementations, one module per ADF resource kind
+    _shared.py              shared helpers (client construction, wire-dict conversion, miscased-key checks)
+    _checkpoints.py          snapshot/rollback/back/forward engine, shared by every resource kind
+    pipelines.py, triggers.py, linked_services.py, datasets.py,
+    data_flows.py, global_parameters.py, integration_runtimes.py
+    __init__.py              assembles TOOL_REGISTRY from the modules above
+  schemas/                MCP tool-schema definitions, mirroring tools/ by resource kind
+    pipelines.py, triggers.py, linked_services.py, datasets.py,
+    data_flows.py, global_parameters.py, integration_runtimes.py
+    __init__.py              assembles the schema list server.py exposes via list_tools()
 project/_snapshot/      pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
 project/_logs/          audit log of tool calls, one dated folder per day (gitignored, created at runtime)
 docs/TEST_ADF_CONTEXT.md  living design/decision doc for this R&D effort — read before making changes
