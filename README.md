@@ -85,8 +85,8 @@ checkpoint stays reachable.
 
 ```
 mcp_adf/                the MCP server package (server.py, tools.py, auth.py)
-project/_snapshots/     pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
-project/logs/           audit log of tool calls, one dated folder per day (gitignored, created at runtime)
+project/_snapshot/      pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
+project/_logs/          audit log of tool calls, one dated folder per day (gitignored, created at runtime)
 docs/TEST_ADF_CONTEXT.md  living design/decision doc for this R&D effort — read before making changes
 .env                    real credentials (gitignored, never commit)
 .env.example            template — copy to .env
