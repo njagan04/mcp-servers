@@ -249,16 +249,16 @@ mcp_adf/                         the MCP server package
 │   ├── global_parameters.py     global-parameter tools — list/get/update, snapshot/rollback/back/forward
 │   ├── integration_runtimes.py  integration-runtime tools — get status/start
 │   └── __init__.py              assembles TOOL_REGISTRY from the modules above
-└── schemas/                     MCP tool-schema definitions, mirroring tools/ by resource kind
-    ├── pipelines.py             schema for pipeline tools
-    ├── triggers.py              schema for trigger tools
-    ├── linked_services.py       schema for linked-service tools
-    ├── datasets.py              schema for dataset tools
-    ├── data_flows.py            schema for data-flow tools
-    ├── global_parameters.py     schema for global-parameter tools
-    ├── integration_runtimes.py  schema for integration-runtime tools
-    └── __init__.py              assembles the schema list server.py exposes via list_tools()
-
+├── schemas/                     MCP tool-schema definitions, mirroring tools/ by resource kind
+│   ├── pipelines.py             schema for pipeline tools
+│   ├── triggers.py              schema for trigger tools
+│   ├── linked_services.py       schema for linked-service tools
+│   ├── datasets.py              schema for dataset tools
+│   ├── data_flows.py            schema for data-flow tools
+│   ├── global_parameters.py     schema for global-parameter tools
+│   ├── integration_runtimes.py  schema for integration-runtime tools
+│   └── __init__.py              assembles the schema list server.py exposes via list_tools()
+│
 project/
 ├── _snapshot/                   pre-change pipeline/dataset/data-flow definitions, for rollback (gitignored, created at runtime)
 └── _logs/                       audit log of tool calls, one dated folder per day (gitignored, created at runtime)
