@@ -1,10 +1,25 @@
+from datetime import timedelta, timezone
+
 from azure.mgmt.datafactory import DataFactoryManagementClient
 
 from mcp_adf.auth import get_credential
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
 
 def _client(tenant_id: str, client_id: str, client_secret: str, subscription_id: str) -> DataFactoryManagementClient:
     return DataFactoryManagementClient(get_credential(tenant_id, client_id, client_secret), subscription_id)
+
+
+def _to_ist(value) -> str | None:
+    """
+    ADF Studio's Monitor UI silently renders timestamps in the browser's local timezone
+    (IST for this team) with no timezone label, while the SDK returns UTC — the same run
+    can look "off by 5:30" when eyeballed next to Studio unless this is converted too.
+    """
+    if value is None:
+        return None
+    return value.astimezone(_IST).strftime("%Y-%m-%d %H:%M:%S IST")
 
 
 def _to_wire_dict(resource) -> dict:

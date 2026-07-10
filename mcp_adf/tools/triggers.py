@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from azure.mgmt.datafactory.models import RunFilterParameters
 
-from mcp_adf.tools._shared import _client
+from mcp_adf.tools._shared import _client, _to_ist
 
 
 def get_trigger(
@@ -101,6 +101,7 @@ def get_trigger_run_history(
                 "status": r.status,
                 "message": r.message,
                 "timestamp": str(r.trigger_run_timestamp),
+                "timestamp_ist": _to_ist(r.trigger_run_timestamp),
             }
             for r in runs.value
             if r.trigger_name == trigger_name

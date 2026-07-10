@@ -5,7 +5,7 @@ from azure.mgmt.datafactory import DataFactoryManagementClient
 from azure.mgmt.datafactory.models import PipelineResource, RunFilterParameters, RunQueryFilter
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_ist, _to_wire_dict
 
 
 def list_pipelines(
@@ -293,7 +293,9 @@ def list_activity_runs(
                 "activity_type": a.activity_type,
                 "status": a.status,
                 "start": str(a.activity_run_start),
+                "start_ist": _to_ist(a.activity_run_start),
                 "end": str(a.activity_run_end),
+                "end_ist": _to_ist(a.activity_run_end),
                 "duration_in_ms": a.duration_in_ms,
             }
             for a in activities.value
@@ -375,7 +377,9 @@ def get_pipeline_run_history(
                 "run_id": r.run_id,
                 "status": r.status,
                 "start": str(r.run_start),
+                "start_ist": _to_ist(r.run_start),
                 "end": str(r.run_end),
+                "end_ist": _to_ist(r.run_end),
                 "triggered_by": {
                     "name": getattr(r.invoked_by, "name", None),
                     "type": getattr(r.invoked_by, "invoked_by_type", None),
@@ -407,7 +411,9 @@ def list_pipeline_runs(
                 "run_id": r.run_id,
                 "status": r.status,
                 "start": str(r.run_start),
+                "start_ist": _to_ist(r.run_start),
                 "end": str(r.run_end),
+                "end_ist": _to_ist(r.run_end),
                 "triggered_by": {
                     "name": getattr(r.invoked_by, "name", None),
                     "type": getattr(r.invoked_by, "invoked_by_type", None),
@@ -503,7 +509,8 @@ def get_activity_run_history(
             def _err_field(key: str, attr: str, err=err) -> str | None:
                 return err.get(key) if isinstance(err, dict) else getattr(err, attr, None)
 
-            failed_at = str(a.activity_run_end or a.activity_run_start or "")
+            failed_at_dt = a.activity_run_end or a.activity_run_start
+            failed_at = str(failed_at_dt or "")
             if name not in aggregated:
                 aggregated[name] = {
                     "failure_count": 0,
@@ -512,6 +519,7 @@ def get_activity_run_history(
                     "last_error_source": None,
                     "last_activity_run_id": None,
                     "last_failed_at": "",
+                    "last_failed_at_dt": None,
                 }
             aggregated[name]["failure_count"] += 1
             if failed_at >= aggregated[name]["last_failed_at"]:
@@ -520,6 +528,7 @@ def get_activity_run_history(
                 aggregated[name]["last_error_source"] = _err_field("target", "target")
                 aggregated[name]["last_activity_run_id"] = a.activity_run_id
                 aggregated[name]["last_failed_at"] = failed_at
+                aggregated[name]["last_failed_at_dt"] = failed_at_dt
 
     summary = [
         {
@@ -530,6 +539,7 @@ def get_activity_run_history(
             "last_error_source": data["last_error_source"],
             "last_activity_run_id": data["last_activity_run_id"],
             "last_failed_at": data["last_failed_at"],
+            "last_failed_at_ist": _to_ist(data["last_failed_at_dt"]),
         }
         for name, data in sorted(aggregated.items(), key=lambda x: -x[1]["failure_count"])
     ]
