@@ -27,7 +27,6 @@ Given a failing pipeline, it walks Claude through diagnosing the actual root cau
 ```bash
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-copy .env.example .env
 ```
 
 Fill in `.env` with the target factory's service principal credentials:
@@ -55,7 +54,8 @@ In Claude Desktop's `claude_desktop_config.json`, point at this folder's venv in
         "PYTHONPATH": "C:\\ABSOLUTE\\PATH\\TO\\THIS\\FOLDER"
       }
     }
-  }
+  },
+  ...claude default settings
 }
 ```
 
