@@ -191,6 +191,24 @@ _TOOLS = [
         annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
     ),
     Tool(
+        name="list_pipeline_runs",
+        description=(
+            "Factory-wide run sweep across every pipeline in a time window, matching ADF Studio's "
+            "Monitor tab (e.g. \"last 24 hours\"). Use this instead of calling get_pipeline_run_history "
+            "once per pipeline when the question is about recent activity across the whole factory "
+            "rather than one specific pipeline's history."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "factory_name": {"type": "string"},
+                "hours": {"type": "integer", "default": 24, "description": "How far back to search, in hours."},
+            },
+            "required": ["factory_name"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+    ),
+    Tool(
         name="get_activity_run_history",
         description=(
             "Aggregated summary of which activities have failed in recent runs of a pipeline. "

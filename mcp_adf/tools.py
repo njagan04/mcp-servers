@@ -515,6 +515,38 @@ def get_pipeline_run_history(
     }
 
 
+def list_pipeline_runs(
+    factory_name: str,
+    subscription_id: str, resource_group: str,
+    tenant_id: str, client_id: str, client_secret: str,
+    hours: int = 24,
+) -> dict:
+    """Factory-wide run sweep — every pipeline's runs in the window, like ADF Studio's Monitor tab."""
+    client = _client(tenant_id, client_id, client_secret, subscription_id)
+    now = datetime.now(timezone.utc)
+    run_filter = RunFilterParameters(
+        last_updated_after=now - timedelta(hours=hours),
+        last_updated_before=now,
+    )
+    runs = client.pipeline_runs.query_by_factory(resource_group, factory_name, run_filter)
+    return {
+        "runs": [
+            {
+                "pipeline_name": r.pipeline_name,
+                "run_id": r.run_id,
+                "status": r.status,
+                "start": str(r.run_start),
+                "end": str(r.run_end),
+                "triggered_by": {
+                    "name": getattr(r.invoked_by, "name", None),
+                    "type": getattr(r.invoked_by, "invoked_by_type", None),
+                } if r.invoked_by else None,
+            }
+            for r in runs.value
+        ]
+    }
+
+
 def get_pipeline_definition(
     pipeline_name: str, factory_name: str,
     subscription_id: str, resource_group: str,
@@ -2059,6 +2091,7 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "get_activity_run_io": get_activity_run_io,
     "get_pipeline_run_status": get_pipeline_run_status,
     "get_pipeline_run_history": get_pipeline_run_history,
+    "list_pipeline_runs": list_pipeline_runs,
     "get_activity_run_history": get_activity_run_history,
     "get_pipeline_definition": get_pipeline_definition,
     "get_linked_service": get_linked_service,
