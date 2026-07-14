@@ -2,7 +2,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.mgmt.datafactory.models import DataFlowResource
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_dropped_fields, _reject_if_miscased, _to_wire_dict
 
 
 def list_data_flows(
@@ -62,6 +62,9 @@ def create_data_flow(
     )
 
     properties = definition.get("properties", definition)
+    error = _reject_if_dropped_fields({"properties": properties}, DataFlowResource, "data flow")
+    if error:
+        return error
     data_flow_resource = DataFlowResource.deserialize({"properties": properties})
     error = _reject_if_miscased(data_flow_resource, "data flow")
     if error:
@@ -119,7 +122,10 @@ def update_data_flow_definition(
     current = client.data_flows.get(resource_group, factory_name, data_flow_name)
     _ensure_baseline("dataflow", factory_name, data_flow_name, _to_wire_dict(current), reason)
 
-    data_flow_resource = DataFlowResource.deserialize(definition)
+    error = _reject_if_dropped_fields({"properties": definition}, DataFlowResource, "data flow")
+    if error:
+        return error
+    data_flow_resource = DataFlowResource.deserialize({"properties": definition})
     error = _reject_if_miscased(data_flow_resource, "data flow")
     if error:
         return error
@@ -194,7 +200,10 @@ def rollback_data_flow_definition(
         )
         return {"data_flow_name": data_flow_name, "rolled_back_to": target["state_name"], "deleted": True, "reason": reason}
 
-    data_flow_resource = DataFlowResource.deserialize(target["definition"])
+    error = _reject_if_dropped_fields({"properties": target["definition"]}, DataFlowResource, "data flow")
+    if error:
+        return error
+    data_flow_resource = DataFlowResource.deserialize({"properties": target["definition"]})
     error = _reject_if_miscased(data_flow_resource, "data flow")
     if error:
         return error
@@ -214,7 +223,10 @@ def _data_flow_navigate(
     client = _client(tenant_id, client_id, client_secret, subscription_id)
 
     def apply(definition: dict) -> dict | None:
-        data_flow_resource = DataFlowResource.deserialize(definition)
+        error = _reject_if_dropped_fields({"properties": definition}, DataFlowResource, "data flow")
+        if error:
+            return error
+        data_flow_resource = DataFlowResource.deserialize({"properties": definition})
         error = _reject_if_miscased(data_flow_resource, "data flow")
         if error:
             return error

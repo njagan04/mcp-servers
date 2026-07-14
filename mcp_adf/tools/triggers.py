@@ -4,7 +4,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.mgmt.datafactory.models import RunFilterParameters, TriggerResource
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_ist, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_dropped_fields, _reject_if_miscased, _to_ist, _to_wire_dict
 
 
 def create_trigger(
@@ -40,6 +40,9 @@ def create_trigger(
         state_name="before-creation", action="create",
     )
 
+    error = _reject_if_dropped_fields({"properties": definition}, TriggerResource, "trigger")
+    if error:
+        return error
     trigger_resource = TriggerResource.deserialize({"properties": definition})
     error = _reject_if_miscased(trigger_resource, "trigger")
     if error:
@@ -212,6 +215,9 @@ def update_trigger_definition(
     current = client.triggers.get(resource_group, factory_name, trigger_name)
     _ensure_baseline("trigger", factory_name, trigger_name, _to_wire_dict(current), reason)
 
+    error = _reject_if_dropped_fields({"properties": definition}, TriggerResource, "trigger")
+    if error:
+        return error
     trigger_resource = TriggerResource.deserialize({"properties": definition})
     error = _reject_if_miscased(trigger_resource, "trigger")
     if error:
@@ -287,6 +293,9 @@ def rollback_trigger_definition(
         )
         return {"trigger_name": trigger_name, "rolled_back_to": target["state_name"], "deleted": True, "reason": reason}
 
+    error = _reject_if_dropped_fields({"properties": target["definition"]}, TriggerResource, "trigger")
+    if error:
+        return error
     trigger_resource = TriggerResource.deserialize({"properties": target["definition"]})
     error = _reject_if_miscased(trigger_resource, "trigger")
     if error:
@@ -307,6 +316,9 @@ def _trigger_navigate(
     client = _client(tenant_id, client_id, client_secret, subscription_id)
 
     def apply(definition: dict) -> dict | None:
+        error = _reject_if_dropped_fields({"properties": definition}, TriggerResource, "trigger")
+        if error:
+            return error
         trigger_resource = TriggerResource.deserialize({"properties": definition})
         error = _reject_if_miscased(trigger_resource, "trigger")
         if error:

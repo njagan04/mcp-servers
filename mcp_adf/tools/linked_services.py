@@ -2,7 +2,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.mgmt.datafactory.models import LinkedServiceResource
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_dropped_fields, _reject_if_miscased, _to_wire_dict
 
 
 def create_linked_service(
@@ -37,6 +37,9 @@ def create_linked_service(
         state_name="before-creation", action="create",
     )
 
+    error = _reject_if_dropped_fields({"properties": definition}, LinkedServiceResource, "linked service")
+    if error:
+        return error
     linked_service_resource = LinkedServiceResource.deserialize({"properties": definition})
     error = _reject_if_miscased(linked_service_resource, "linked service")
     if error:
@@ -134,6 +137,9 @@ def update_linked_service_definition(
     current = client.linked_services.get(resource_group, factory_name, service_name)
     _ensure_baseline("linkedservice", factory_name, service_name, _to_wire_dict(current), reason)
 
+    error = _reject_if_dropped_fields({"properties": definition}, LinkedServiceResource, "linked service")
+    if error:
+        return error
     linked_service_resource = LinkedServiceResource.deserialize({"properties": definition})
     error = _reject_if_miscased(linked_service_resource, "linked service")
     if error:
@@ -209,6 +215,9 @@ def rollback_linked_service_definition(
         )
         return {"service_name": service_name, "rolled_back_to": target["state_name"], "deleted": True, "reason": reason}
 
+    error = _reject_if_dropped_fields({"properties": target["definition"]}, LinkedServiceResource, "linked service")
+    if error:
+        return error
     linked_service_resource = LinkedServiceResource.deserialize({"properties": target["definition"]})
     error = _reject_if_miscased(linked_service_resource, "linked service")
     if error:
@@ -229,6 +238,9 @@ def _linked_service_navigate(
     client = _client(tenant_id, client_id, client_secret, subscription_id)
 
     def apply(definition: dict) -> dict | None:
+        error = _reject_if_dropped_fields({"properties": definition}, LinkedServiceResource, "linked service")
+        if error:
+            return error
         linked_service_resource = LinkedServiceResource.deserialize({"properties": definition})
         error = _reject_if_miscased(linked_service_resource, "linked service")
         if error:

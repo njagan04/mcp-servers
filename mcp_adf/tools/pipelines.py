@@ -5,7 +5,7 @@ from azure.mgmt.datafactory import DataFactoryManagementClient
 from azure.mgmt.datafactory.models import PipelineResource, RunFilterParameters, RunQueryFilter
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_ist, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_dropped_fields, _reject_if_miscased, _to_ist, _to_wire_dict
 
 
 def list_pipelines(
@@ -58,6 +58,9 @@ def create_pipeline(
     )
 
     properties = definition.get("properties", definition)
+    error = _reject_if_dropped_fields(properties, PipelineResource, "pipeline")
+    if error:
+        return error
     pipeline_resource = PipelineResource.deserialize(properties)
     error = _reject_if_miscased(pipeline_resource, "pipeline")
     if error:
@@ -598,6 +601,9 @@ def update_pipeline_definition(
     current = client.pipelines.get(resource_group, factory_name, pipeline_name)
     _ensure_baseline("pipeline", factory_name, pipeline_name, _to_wire_dict(current), reason)
 
+    error = _reject_if_dropped_fields(definition, PipelineResource, "pipeline")
+    if error:
+        return error
     pipeline_resource = PipelineResource.deserialize(definition)
     error = _reject_if_miscased(pipeline_resource, "pipeline")
     if error:
@@ -677,6 +683,9 @@ def rollback_pipeline_definition(
         )
         return {"pipeline_name": pipeline_name, "rolled_back_to": target["state_name"], "deleted": True, "reason": reason}
 
+    error = _reject_if_dropped_fields(target["definition"], PipelineResource, "pipeline")
+    if error:
+        return error
     pipeline_resource = PipelineResource.deserialize(target["definition"])
     error = _reject_if_miscased(pipeline_resource, "pipeline")
     if error:
@@ -697,6 +706,9 @@ def _pipeline_navigate(
     client = _client(tenant_id, client_id, client_secret, subscription_id)
 
     def apply(definition: dict) -> dict | None:
+        error = _reject_if_dropped_fields(definition, PipelineResource, "pipeline")
+        if error:
+            return error
         pipeline_resource = PipelineResource.deserialize(definition)
         error = _reject_if_miscased(pipeline_resource, "pipeline")
         if error:
