@@ -17,7 +17,7 @@ Given a failing pipeline, it walks Claude through diagnosing the actual root cau
 - [Register with Claude Desktop](#register-with-claude-desktop)
 - [Configure permissions in Claude Desktop](#configure-permissions-in-claude-desktop)
 - [Instructions](#instructions)
-- [Tools](#tools) — 62 tools across 7 categories
+- [Tools](#tools) — 66 tools across 7 categories
 - [Structure](#structure)
 
 ---
@@ -83,15 +83,33 @@ If you're instead setting this up as a **Claude Desktop Project** (Projects → 
 
 ```text
 This server exposes Azure Data Factory diagnostic and self-remediation tools. Follow this
-workflow for every failure investigation — don't skip straight to a fix.
+workflow for every failure investigation — don't skip straight to a fix, and don't call
+tools you don't need.
 
-1. DIAGNOSE FULLY before proposing or taking any action. Start with get_activity_run_error
-(or get_pipeline_run_history + get_activity_run_history) to find the failing activity, then
+0. BE ECONOMICAL WITH TOOL CALLS. Every call costs time, and every mutating call is a real
+change against a live factory, not a sandbox — call the minimum set needed to reach a
+decision, not the maximum available. Before calling a tool, check whether you already have
+the answer from earlier in this conversation (a prior call's result, or something the user
+already told you) — don't re-call a read-only tool with the same arguments to "double
+check" without a reason to distrust the earlier result. If the user already named a specific
+resource, go straight to its get_*/get_*_definition_raw tool — don't call the matching
+list_* tool first just to browse. Don't call several diagnostic tools speculatively "in
+case one has the answer"; decide which one actually answers your open question and call
+that. Before create_*, check existence from what you already know (a prior list_* result,
+or the user's own statement) rather than calling create_* speculatively and reacting to an
+"already_exists" error — that's a wasted round-trip, and on a mutating tool it still means
+triggering an approval dialog for something you could have ruled out in advance.
+
+1. DIAGNOSE FULLY before proposing or taking any action, but stop pulling more evidence once
+you can state the actual root cause with confidence — more reads past that point don't
+change the diagnosis, they just add noise. Start with get_activity_run_error (or
+get_pipeline_run_history + get_activity_run_history) to find the failing activity, then
 list_activity_runs / get_activity_run_io for the actual input/output data, and
 get_pipeline_definition_raw / get_dataset_definition_raw / get_data_flow_definition /
 get_linked_service_definition_raw for the real configuration (timeout, query, dataset or
 linked-service reference, host/port). Don't guess a fix from the error message alone if a
-raw-definition or activity-IO tool would show the actual cause.
+raw-definition or activity-IO tool would show the actual cause — but don't call every
+read-only tool in the module "for completeness" either.
 
 2. PROPOSE a numbered remediation plan in your response before calling any mutating tool.
 State the diagnosed root cause, the specific fix, which tool(s) will apply it, and how you'll
@@ -101,24 +119,41 @@ instead of proposing a fix.
 
 3. EXECUTE one mutating step at a time. Every mutating tool call surfaces its own native
 approval dialog showing your `reason` — write it to state the specific diagnosis, not a
-generic phrase, since it's the only context the human sees at the moment of approval.
+generic phrase, since it's the only context the human sees at the moment of approval. Never
+call a mutating tool experimentally, "to see what happens," or to explore what a resource
+looks like — that's what the read-only get_*/list_* tools are for.
 
 4. VERIFY after applying a fix (rerun, check status/error) — don't declare success just
-because the write succeeded.
+because the write succeeded, and don't treat this server's own get_*/list_* read-back as
+independent proof: it went through the same write path, so it can't catch a bug in that
+path. Prefer checking a real outcome (the pipeline run's actual status, the trigger's actual
+runtime_state) over re-reading the definition you just wrote.
 
 5. If verification shows the fix didn't work, undo it rather than leaving a bad change in
 place — use the matching back_*_definition tool for "undo just this last change" (no
 state_name needed). Use rollback_*_definition instead only when jumping to a specific
-earlier named checkpoint (list_*_snapshots shows what's available); forward_*_definition
-re-applies a change after stepping back from it. None of these delete history — every
-checkpoint stays reachable.
+earlier named checkpoint (call list_*_snapshots when you actually intend to roll back, not
+preemptively, to see what's available); forward_*_definition re-applies a change after
+stepping back from it. None of these delete history — every checkpoint stays reachable.
+
+6. When the human says "go back" / "undo" / "revert" — for a resource, don't guess which
+checkpoint they mean from memory of this conversation alone. Call list_*_snapshots first
+and treat its state_name/reason/change_summary/timestamp fields as the source of truth for
+what's actually recoverable, then cross-check that against what you and the human discussed
+(e.g. "the change we just made" should match the newest entry's reason/change_summary) before
+picking a state_name. If "go back" clearly means "undo the one change we just made" and the
+newest entry matches that, back_*_definition (no state_name) is simpler and correct; only
+reach for rollback_*_definition with an explicit state_name when the target is an earlier,
+specifically-named checkpoint, or when the snapshot list disagrees with what you assumed
+from conversation context — the snapshot log is ground truth, your memory of the
+conversation is not.
 ```
 
 </details>
 
 ## Tools
 
-62 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop)).
+66 tools, grouped by resource type. **Type** marks whether a tool mutates anything: read-only tools are safe to Always Allow; mutating tools always require a `reason` argument and surface a native approval dialog (see [Configure permissions](#configure-permissions-in-claude-desktop)).
 
 <details open>
 <summary><strong>Pipelines</strong> (18 tools)</summary>
@@ -185,11 +220,12 @@ checkpoint stays reachable.
 </details>
 
 <details>
-<summary><strong>Datasets</strong> (7 tools)</summary>
+<summary><strong>Datasets</strong> (8 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
 | `list_datasets` | read-only | Factory-wide sweep — name, type, backing linked service. |
+| `create_dataset` | mutating | Create a brand-new dataset; fails if the name already exists. |
 | `get_dataset_definition_raw` | read-only | Full definition (schema, structure, linked-service ref, parameters) — the evidence for schema-drift diagnosis, and the editable input to `update_dataset_definition`. |
 | `update_dataset_definition` | mutating | Overwrite a dataset's full definition (e.g. correct a drifted schema). |
 | `list_dataset_snapshots` | read-only | List named checkpoints in a dataset's history. |
@@ -200,10 +236,12 @@ checkpoint stays reachable.
 </details>
 
 <details>
-<summary><strong>Data flows</strong> (6 tools)</summary>
+<summary><strong>Data flows</strong> (8 tools)</summary>
 
 | Tool | Type | What it's for |
 |---|---|---|
+| `list_data_flows` | read-only | Factory-wide sweep — name and type (e.g. MappingDataFlow) for each. |
+| `create_data_flow` | mutating | Create a brand-new data flow; fails if the name already exists. |
 | `get_data_flow_definition` | read-only | Full Mapping Data Flow definition (sources, sinks, transformation script) — the only way to see inside the transformation graph itself. |
 | `update_data_flow_definition` | mutating | Overwrite a data flow's full definition to apply a fix. |
 | `list_data_flow_snapshots` | read-only | List named checkpoints in a data flow's history. |
@@ -214,11 +252,17 @@ checkpoint stays reachable.
 </details>
 
 <details>
-<summary><strong>Global parameters</strong> (7 tools)</summary>
+<summary><strong>Global parameters</strong> (8 tools)</summary>
+
+ADF allows only one Global Parameters resource per factory (name is always `"default"`) —
+every parameter is a key inside its `properties` dict, not its own resource. These tools
+handle that transparently: "creating"/"removing" one parameter really reads the whole set,
+patches one key in/out, and writes the full set back, so siblings are never affected.
 
 | Tool | Type | What it's for |
 |---|---|---|
 | `list_global_parameters` | read-only | Factory-wide sweep — name, type, value of every global parameter. |
+| `create_global_parameter` | mutating | Add a brand-new global parameter; fails if the name already exists. |
 | `get_global_parameter_definition_raw` | read-only | Full `{"type", "value"}` definition — the editable input to `update_global_parameter_definition`. |
 | `update_global_parameter_definition` | mutating | Overwrite a global parameter's type/value (e.g. fix a stale connection string or flipped env flag). |
 | `list_global_parameter_snapshots` | read-only | List named checkpoints in a global parameter's history. |
