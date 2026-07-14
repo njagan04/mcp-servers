@@ -62,7 +62,7 @@ def create_data_flow(
     )
 
     properties = definition.get("properties", definition)
-    data_flow_resource = DataFlowResource.deserialize(properties)
+    data_flow_resource = DataFlowResource.deserialize({"properties": properties})
     error = _reject_if_miscased(data_flow_resource, "data flow")
     if error:
         return error
