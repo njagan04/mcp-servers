@@ -56,6 +56,7 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "back_linked_service_definition": linked_services.back_linked_service_definition,
     "forward_linked_service_definition": linked_services.forward_linked_service_definition,
 
+    "create_dataset": datasets.create_dataset,
     "list_datasets": datasets.list_datasets,
     "get_dataset_definition_raw": datasets.get_dataset_definition_raw,
     "update_dataset_definition": datasets.update_dataset_definition,

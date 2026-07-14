@@ -2,6 +2,39 @@ from mcp.types import Tool, ToolAnnotations
 
 TOOLS = [
     Tool(
+        name="create_dataset",
+        description=(
+            "Creates a brand-new dataset. Fails with an explicit error if a dataset with this name "
+            "already exists — use update_dataset_definition to modify an existing one instead. Pushes "
+            "a \"did not exist\" marker onto this dataset's history stack, so rollback_dataset_definition "
+            "can undo the creation (delete it) later. `definition` accepts either the flat shape "
+            "get_dataset_definition_raw uses, or the ARM/Data-Factory-Studio export shape "
+            "({\"name\": ..., \"properties\": {\"type\": \"...\", ...}}) — if a \"properties\" key is "
+            "present, its contents are used and the wrapper is discarded. `dataset_name` (not the "
+            "JSON's own \"name\" field, if present) determines the actual name created."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "dataset_name": {"type": "string"},
+                "definition": {
+                    "type": "object",
+                    "description": "Dataset definition JSON — flat shape or {\"name\":..., \"properties\":{...}}.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this dataset is being created — shown to the user in the approval dialog.",
+                },
+                "state_name": {
+                    "type": "string",
+                    "description": "Optional name for the created state. Defaults to \"created\" if omitted.",
+                },
+            },
+            "required": ["dataset_name", "definition", "reason"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    ),
+    Tool(
         name="list_datasets",
         description="Factory-wide dataset sweep — name, type, and backing linked service for each.",
         inputSchema={

@@ -1,7 +1,69 @@
+from azure.core.exceptions import ResourceNotFoundError
 from azure.mgmt.datafactory.models import DatasetResource
 
 from mcp_adf.tools._checkpoints import _ensure_baseline, _find_snapshot, _list_snapshots, _navigate, _push_snapshot
-from mcp_adf.tools._shared import _client, _reject_if_miscased, _to_wire_dict
+from mcp_adf.tools._shared import _client, _reject_if_dropped_fields, _reject_if_miscased, _to_wire_dict
+
+
+def create_dataset(
+    dataset_name: str, factory_name: str,
+    subscription_id: str, resource_group: str,
+    tenant_id: str, client_id: str, client_secret: str,
+    definition: dict,
+    reason: str,
+    state_name: str | None = None,
+) -> dict:
+    """
+    Creates a brand-new dataset. Fails with an explicit error if a dataset with this name
+    already exists — use update_dataset_definition to modify an existing one instead.
+    Records two checkpoints in this dataset's history: "before-creation" (it didn't exist —
+    rollback here deletes it) and one for the just-created content, named `state_name` if
+    given (default "created") — so list_dataset_snapshots and rollback_dataset_definition
+    work on it from the start, same as any updated dataset. `definition` accepts either
+    shape:
+      - the flat shape get_dataset_definition_raw/update_dataset_definition use
+        (type/schema/typeProperties/linkedServiceName/... at the top level), or
+      - the ARM / Data Factory Studio export shape
+        ({"name": ..., "properties": {"type": "...", ...}}) — if a "properties" key is
+        present, its contents are used and the wrapper (including its own "name")
+        is discarded. `dataset_name` is always what determines the actual name created.
+    """
+    client = _client(tenant_id, client_id, client_secret, subscription_id)
+
+    try:
+        client.datasets.get(resource_group, factory_name, dataset_name)
+        return {"error": "dataset_already_exists", "dataset_name": dataset_name}
+    except ResourceNotFoundError:
+        pass
+
+    _push_snapshot(
+        "dataset", factory_name, dataset_name,
+        definition=None, reason=reason, change_summary="dataset did not exist",
+        state_name="before-creation", action="create",
+    )
+
+    properties = definition.get("properties", definition)
+    error = _reject_if_dropped_fields({"properties": properties}, DatasetResource, "dataset")
+    if error:
+        return error
+    dataset_resource = DatasetResource.deserialize({"properties": properties})
+    error = _reject_if_miscased(dataset_resource, "dataset")
+    if error:
+        return error
+    created = client.datasets.create_or_update(resource_group, factory_name, dataset_name, dataset_resource)
+
+    saved = _push_snapshot(
+        "dataset", factory_name, dataset_name,
+        definition=_to_wire_dict(created), reason=reason, change_summary="dataset created",
+        state_name=state_name or "created",
+    )
+    return {
+        "dataset_name": dataset_name,
+        "created": True,
+        "reason": reason,
+        "saved_state_name": saved["state_name"],
+        "etag": created.etag,
+    }
 
 
 def list_datasets(
@@ -63,7 +125,10 @@ def update_dataset_definition(
     current = client.datasets.get(resource_group, factory_name, dataset_name)
     _ensure_baseline("dataset", factory_name, dataset_name, _to_wire_dict(current), reason)
 
-    dataset_resource = DatasetResource.deserialize(definition)
+    error = _reject_if_dropped_fields({"properties": definition}, DatasetResource, "dataset")
+    if error:
+        return error
+    dataset_resource = DatasetResource.deserialize({"properties": definition})
     error = _reject_if_miscased(dataset_resource, "dataset")
     if error:
         return error
@@ -138,7 +203,10 @@ def rollback_dataset_definition(
         )
         return {"dataset_name": dataset_name, "rolled_back_to": target["state_name"], "deleted": True, "reason": reason}
 
-    dataset_resource = DatasetResource.deserialize(target["definition"])
+    error = _reject_if_dropped_fields({"properties": target["definition"]}, DatasetResource, "dataset")
+    if error:
+        return error
+    dataset_resource = DatasetResource.deserialize({"properties": target["definition"]})
     error = _reject_if_miscased(dataset_resource, "dataset")
     if error:
         return error
@@ -158,7 +226,10 @@ def _dataset_navigate(
     client = _client(tenant_id, client_id, client_secret, subscription_id)
 
     def apply(definition: dict) -> dict | None:
-        dataset_resource = DatasetResource.deserialize(definition)
+        error = _reject_if_dropped_fields({"properties": definition}, DatasetResource, "dataset")
+        if error:
+            return error
+        dataset_resource = DatasetResource.deserialize({"properties": definition})
         error = _reject_if_miscased(dataset_resource, "dataset")
         if error:
             return error
