@@ -2,6 +2,52 @@ from mcp.types import Tool, ToolAnnotations
 
 TOOLS = [
     Tool(
+        name="list_data_flows",
+        description="Factory-wide data flow sweep — name and type (e.g. MappingDataFlow) for each.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "factory_name": {"type": "string"},
+            },
+            "required": ["factory_name"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+    ),
+    Tool(
+        name="create_data_flow",
+        description=(
+            "Creates a brand-new data flow. Fails with an explicit error if a data flow with this "
+            "name already exists — use update_data_flow_definition to modify an existing one instead. "
+            "Pushes a \"did not exist\" marker onto this data flow's history stack, so "
+            "rollback_data_flow_definition can undo the creation (delete it) later. `definition` accepts "
+            "either the flat shape get_data_flow_definition uses, or the ARM/Data-Factory-Studio export "
+            "shape ({\"name\": ..., \"properties\": {\"type\": \"MappingDataFlow\", ...}}) — if a "
+            "\"properties\" key is present, its contents are used and the wrapper is discarded. "
+            "`data_flow_name` (not the JSON's own \"name\" field, if present) determines the actual "
+            "name created."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data_flow_name": {"type": "string"},
+                "definition": {
+                    "type": "object",
+                    "description": "Data flow definition JSON — flat shape or {\"name\":..., \"properties\":{...}}.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this data flow is being created — shown to the user in the approval dialog.",
+                },
+                "state_name": {
+                    "type": "string",
+                    "description": "Optional name for the created state. Defaults to \"created\" if omitted.",
+                },
+            },
+            "required": ["data_flow_name", "definition", "reason"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    ),
+    Tool(
         name="get_data_flow_definition",
         description=(
             "Full Mapping Data Flow definition (sources, sinks, transformation script). Pipeline "
