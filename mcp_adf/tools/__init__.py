@@ -64,6 +64,8 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "back_dataset_definition": datasets.back_dataset_definition,
     "forward_dataset_definition": datasets.forward_dataset_definition,
 
+    "list_data_flows": data_flows.list_data_flows,
+    "create_data_flow": data_flows.create_data_flow,
     "get_data_flow_definition": data_flows.get_data_flow_definition,
     "update_data_flow_definition": data_flows.update_data_flow_definition,
     "list_data_flow_snapshots": data_flows.list_data_flow_snapshots,
