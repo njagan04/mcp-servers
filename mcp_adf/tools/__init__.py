@@ -74,6 +74,7 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "back_data_flow_definition": data_flows.back_data_flow_definition,
     "forward_data_flow_definition": data_flows.forward_data_flow_definition,
 
+    "create_global_parameter": global_parameters.create_global_parameter,
     "list_global_parameters": global_parameters.list_global_parameters,
     "get_global_parameter_definition_raw": global_parameters.get_global_parameter_definition_raw,
     "update_global_parameter_definition": global_parameters.update_global_parameter_definition,

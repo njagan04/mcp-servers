@@ -2,6 +2,37 @@ from mcp.types import Tool, ToolAnnotations
 
 TOOLS = [
     Tool(
+        name="create_global_parameter",
+        description=(
+            "Creates a brand-new global parameter. Fails with an explicit error if one with this name "
+            "already exists — use update_global_parameter_definition to modify an existing one instead. "
+            "Pushes a \"did not exist\" marker onto this parameter's history stack, so "
+            "rollback_global_parameter_definition can undo the creation (delete it) later. `definition` "
+            "should be {\"type\": ..., \"value\": ...}, the same flat shape "
+            "get_global_parameter_definition_raw uses."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "global_parameter_name": {"type": "string"},
+                "definition": {
+                    "type": "object",
+                    "description": "e.g. {\"type\": \"String\", \"value\": \"...\"}.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this global parameter is being created — shown in the approval dialog.",
+                },
+                "state_name": {
+                    "type": "string",
+                    "description": "Optional name for the created state. Defaults to \"created\" if omitted.",
+                },
+            },
+            "required": ["global_parameter_name", "definition", "reason"],
+        },
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True),
+    ),
+    Tool(
         name="list_global_parameters",
         description=(
             "Factory-wide global parameter sweep — name, type, and value for each. These are the "
