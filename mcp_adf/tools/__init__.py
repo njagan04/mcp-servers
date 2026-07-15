@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from mcp_adf.tools import (
+    _dispatch,
     data_flows,
     datasets,
     global_parameters,
@@ -12,12 +13,17 @@ from mcp_adf.tools import (
 
 # Single source of truth for the ADF tool registry, assembled from each resource-type
 # module. Imported by server.py (stdio MCP path).
+#
+# create_*/list_*/update_*_definition/list_*_snapshots/rollback_*_definition/
+# back_*_definition/forward_*_definition and get_*_definition_raw used to be separate
+# per-resource-kind tools here (one entry per kind x operation). They're consolidated
+# behind mcp_adf.tools._dispatch's resource_type-parameterized dispatchers instead — the
+# per-kind implementation functions below are unchanged and still do the real work, they're
+# just no longer each exposed as their own top-level MCP tool. Only genuinely kind-specific
+# operations (pipeline run/activity diagnostics, trigger start/stop/rerun, get_linked_service,
+# integration runtime status/start) stay as dedicated entries.
 TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
-    "list_pipelines": pipelines.list_pipelines,
-    "create_pipeline": pipelines.create_pipeline,
     "get_pipeline_definition": pipelines.get_pipeline_definition,
-    "get_pipeline_definition_raw": pipelines.get_pipeline_definition_raw,
-    "update_pipeline_definition": pipelines.update_pipeline_definition,
     "get_pipeline_run_status": pipelines.get_pipeline_run_status,
     "get_pipeline_run_history": pipelines.get_pipeline_run_history,
     "list_pipeline_runs": pipelines.list_pipeline_runs,
@@ -27,62 +33,25 @@ TOOL_REGISTRY: dict[str, Callable[..., dict]] = {
     "get_activity_run_io": pipelines.get_activity_run_io,
     "rerun_pipeline": pipelines.rerun_pipeline,
     "cancel_pipeline_run": pipelines.cancel_pipeline_run,
-    "list_pipeline_snapshots": pipelines.list_pipeline_snapshots,
-    "rollback_pipeline_definition": pipelines.rollback_pipeline_definition,
-    "back_pipeline_definition": pipelines.back_pipeline_definition,
-    "forward_pipeline_definition": pipelines.forward_pipeline_definition,
 
-    "list_triggers": triggers.list_triggers,
     "get_trigger": triggers.get_trigger,
-    "create_trigger": triggers.create_trigger,
-    "update_trigger_definition": triggers.update_trigger_definition,
     "get_trigger_run_history": triggers.get_trigger_run_history,
     "start_trigger": triggers.start_trigger,
     "stop_trigger": triggers.stop_trigger,
     "rerun_trigger_run": triggers.rerun_trigger_run,
     "cancel_trigger_run": triggers.cancel_trigger_run,
-    "list_trigger_snapshots": triggers.list_trigger_snapshots,
-    "rollback_trigger_definition": triggers.rollback_trigger_definition,
-    "back_trigger_definition": triggers.back_trigger_definition,
-    "forward_trigger_definition": triggers.forward_trigger_definition,
 
-    "list_linked_services": linked_services.list_linked_services,
     "get_linked_service": linked_services.get_linked_service,
-    "create_linked_service": linked_services.create_linked_service,
-    "get_linked_service_definition_raw": linked_services.get_linked_service_definition_raw,
-    "update_linked_service_definition": linked_services.update_linked_service_definition,
-    "list_linked_service_snapshots": linked_services.list_linked_service_snapshots,
-    "rollback_linked_service_definition": linked_services.rollback_linked_service_definition,
-    "back_linked_service_definition": linked_services.back_linked_service_definition,
-    "forward_linked_service_definition": linked_services.forward_linked_service_definition,
-
-    "create_dataset": datasets.create_dataset,
-    "list_datasets": datasets.list_datasets,
-    "get_dataset_definition_raw": datasets.get_dataset_definition_raw,
-    "update_dataset_definition": datasets.update_dataset_definition,
-    "list_dataset_snapshots": datasets.list_dataset_snapshots,
-    "rollback_dataset_definition": datasets.rollback_dataset_definition,
-    "back_dataset_definition": datasets.back_dataset_definition,
-    "forward_dataset_definition": datasets.forward_dataset_definition,
-
-    "list_data_flows": data_flows.list_data_flows,
-    "create_data_flow": data_flows.create_data_flow,
-    "get_data_flow_definition": data_flows.get_data_flow_definition,
-    "update_data_flow_definition": data_flows.update_data_flow_definition,
-    "list_data_flow_snapshots": data_flows.list_data_flow_snapshots,
-    "rollback_data_flow_definition": data_flows.rollback_data_flow_definition,
-    "back_data_flow_definition": data_flows.back_data_flow_definition,
-    "forward_data_flow_definition": data_flows.forward_data_flow_definition,
-
-    "create_global_parameter": global_parameters.create_global_parameter,
-    "list_global_parameters": global_parameters.list_global_parameters,
-    "get_global_parameter_definition_raw": global_parameters.get_global_parameter_definition_raw,
-    "update_global_parameter_definition": global_parameters.update_global_parameter_definition,
-    "list_global_parameter_snapshots": global_parameters.list_global_parameter_snapshots,
-    "rollback_global_parameter_definition": global_parameters.rollback_global_parameter_definition,
-    "back_global_parameter_definition": global_parameters.back_global_parameter_definition,
-    "forward_global_parameter_definition": global_parameters.forward_global_parameter_definition,
 
     "get_integration_runtime_status": integration_runtimes.get_integration_runtime_status,
     "start_integration_runtime": integration_runtimes.start_integration_runtime,
+
+    "get_resource_definition_raw": _dispatch.get_resource_definition_raw,
+    "create_resource": _dispatch.create_resource,
+    "list_resources": _dispatch.list_resources,
+    "update_resource_definition": _dispatch.update_resource_definition,
+    "list_resource_snapshots": _dispatch.list_resource_snapshots,
+    "rollback_resource_definition": _dispatch.rollback_resource_definition,
+    "back_resource_definition": _dispatch.back_resource_definition,
+    "forward_resource_definition": _dispatch.forward_resource_definition,
 }
