@@ -101,7 +101,11 @@ def _push_snapshot(
     this point" (definition=None, no blob) — moving to it means delete, not restore.
     """
     index_path = _index_path(kind, factory_name, resource_name)
-    sequence = (sum(1 for _ in index_path.open("r", encoding="utf-8")) if index_path.exists() else 0) + 1
+    if index_path.exists():
+        with index_path.open("r", encoding="utf-8") as f:
+            sequence = sum(1 for _ in f) + 1
+    else:
+        sequence = 1
     digest = _write_blob(kind, factory_name, resource_name, definition)
     entry = {
         "sequence": sequence,
