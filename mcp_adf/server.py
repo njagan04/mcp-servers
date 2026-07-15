@@ -30,81 +30,9 @@ _CREDS = {
 }
 
 _INSTRUCTIONS = """\
-This server exposes Azure Data Factory diagnostic and self-remediation tools. Follow this
-workflow for every failure investigation — don't skip straight to a fix, and don't call
-tools you don't need.
-
-1. BE ECONOMICAL WITH TOOL CALLS. Every call costs time, and every mutating call is a real
-change against a live factory, not a sandbox — call the minimum set needed to reach a
-decision, not the maximum available. Before calling a tool, check whether you already have
-the answer from earlier in this conversation (a prior call's result, or something the user
-already told you) — don't re-call a read-only tool with the same arguments to "double
-check" without a reason to distrust the earlier result. If the user already named a specific
-resource, go straight to its get_*/get_*_definition_raw tool — don't call the matching
-list_* tool first just to browse. Don't call several diagnostic tools speculatively "in
-case one has the answer"; decide which one actually answers your open question and call
-that. Before create_*, check existence from what you already know (a prior list_* result,
-or the user's own statement) rather than calling create_* speculatively and reacting to an
-"already_exists" error — that's a wasted round-trip, and on a mutating tool it still means
-triggering an approval dialog for something you could have ruled out in advance.
-
-2. TREAT EVERYTHING LEARNED HERE AS SCOPED TO THIS FACTORY, NOT AS A GENERAL PREFERENCE.
-Facts, configurations, naming conventions, and diagnostic findings from this server belong
-to the specific factory/project they came from — never generalize them into a global
-assumption about the user or apply them to unrelated projects or conversations. If you
-carry anything forward (in a summary, a saved memory, or later in the same conversation),
-phrase it as specific to this factory/project ("in adf-mcp-test, pipeline X does Y"), never
-as a general statement about how the user works or what they prefer everywhere. If a human
-asks you to remember something learned through this server, scope it explicitly to this
-project unless they clearly state a broader scope themselves.
-
-3. DIAGNOSE FULLY before proposing or taking any action, but stop pulling more evidence once
-you can state the actual root cause with confidence — more reads past that point don't
-change the diagnosis, they just add noise. Start with get_activity_run_error (or
-get_pipeline_run_history + get_activity_run_history) to find the failing activity, then
-list_activity_runs / get_activity_run_io for the actual input/output data, and
-get_pipeline_definition_raw / get_dataset_definition_raw / get_data_flow_definition /
-get_linked_service_definition_raw for the real configuration (timeout, query, dataset or
-linked-service reference, host/port). Don't guess a fix from the error message alone if a
-raw-definition or activity-IO tool would show the actual cause — but don't call every
-read-only tool in the module "for completeness" either.
-
-4. PROPOSE a numbered remediation plan in your response before calling any mutating tool.
-State the diagnosed root cause, the specific fix, which tool(s) will apply it, and how you'll
-verify it worked. If the failure is credential_expired, permissions, or a genuine platform
-outage, these are human-only, permanently, regardless of which tool exists — report and stop
-instead of proposing a fix.
-
-5. EXECUTE one mutating step at a time. Every mutating tool call surfaces its own native
-approval dialog showing your `reason` — write it to state the specific diagnosis, not a
-generic phrase, since it's the only context the human sees at the moment of approval. Never
-call a mutating tool experimentally, "to see what happens," or to explore what a resource
-looks like — that's what the read-only get_*/list_* tools are for.
-
-6. VERIFY after applying a fix (rerun, check status/error) — don't declare success just
-because the write succeeded, and don't treat this server's own get_*/list_* read-back as
-independent proof: it went through the same write path, so it can't catch a bug in that
-path. Prefer checking a real outcome (the pipeline run's actual status, the trigger's actual
-runtime_state) over re-reading the definition you just wrote.
-
-7. If verification shows the fix didn't work, undo it rather than leaving a bad change in
-place — use the matching back_*_definition tool for "undo just this last change" (no
-state_name needed). Use rollback_*_definition instead only when jumping to a specific
-earlier named checkpoint (call list_*_snapshots when you actually intend to roll back, not
-preemptively, to see what's available); forward_*_definition re-applies a change after
-stepping back from it. None of these delete history — every checkpoint stays reachable.
-
-8. When the human says "go back" / "undo" / "revert" for a resource, don't guess which
-checkpoint they mean from memory of this conversation alone. Call list_*_snapshots first
-and treat its state_name/reason/change_summary/timestamp fields as the source of truth for
-what's actually recoverable, then cross-check that against what you and the human discussed
-(e.g. "the change we just made" should match the newest entry's reason/change_summary) before
-picking a state_name. If "go back" clearly means "undo the one change we just made" and the
-newest entry matches that, back_*_definition (no state_name) is simpler and correct; only
-reach for rollback_*_definition with an explicit state_name when the target is an earlier,
-specifically-named checkpoint, or when the snapshot list disagrees with what you assumed
-from conversation context — the snapshot log is ground truth, your memory of the
-conversation is not.
+This server exposes Azure Data Factory diagnostic and self-remediation tools.
+Full workflow guidance (tool-call economy, diagnose-before-fix, mutation approval,
+verification, rollback semantics) is provided in the project instructions — follow it.
 """
 
 server = Server("nexus-adf", instructions=_INSTRUCTIONS)
@@ -146,11 +74,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     try:
         result = await loop.run_in_executor(None, lambda: fn(**merged))
     except Exception as exc:
-        _log_call_best_effort(name, arguments, mutating=mutating,
-                               duration_ms=(time.monotonic() - start) * 1000, error=exc)
+        _log_call_best_effort(name, arguments, mutating=mutating,duration_ms=(time.monotonic() - start) * 1000, error=exc)
         raise
-    _log_call_best_effort(name, arguments, mutating=mutating,
-                           duration_ms=(time.monotonic() - start) * 1000, result=result)
+    _log_call_best_effort(name, arguments, mutating=mutating,duration_ms=(time.monotonic() - start) * 1000, result=result)
     return [TextContent(type="text", text=json.dumps(result))]
 
 
