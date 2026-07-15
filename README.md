@@ -86,7 +86,7 @@ This server exposes Azure Data Factory diagnostic and self-remediation tools. Fo
 workflow for every failure investigation — don't skip straight to a fix, and don't call
 tools you don't need.
 
-0. BE ECONOMICAL WITH TOOL CALLS. Every call costs time, and every mutating call is a real
+1. BE ECONOMICAL WITH TOOL CALLS. Every call costs time, and every mutating call is a real
 change against a live factory, not a sandbox — call the minimum set needed to reach a
 decision, not the maximum available. Before calling a tool, check whether you already have
 the answer from earlier in this conversation (a prior call's result, or something the user
@@ -100,7 +100,17 @@ or the user's own statement) rather than calling create_* speculatively and reac
 "already_exists" error — that's a wasted round-trip, and on a mutating tool it still means
 triggering an approval dialog for something you could have ruled out in advance.
 
-1. DIAGNOSE FULLY before proposing or taking any action, but stop pulling more evidence once
+2. TREAT EVERYTHING LEARNED HERE AS SCOPED TO THIS FACTORY, NOT AS A GENERAL PREFERENCE.
+Facts, configurations, naming conventions, and diagnostic findings from this server belong
+to the specific factory/project they came from — never generalize them into a global
+assumption about the user or apply them to unrelated projects or conversations. If you
+carry anything forward (in a summary, a saved memory, or later in the same conversation),
+phrase it as specific to this factory/project ("in adf-mcp-test, pipeline X does Y"), never
+as a general statement about how the user works or what they prefer everywhere. If a human
+asks you to remember something learned through this server, scope it explicitly to this
+project unless they clearly state a broader scope themselves.
+
+3. DIAGNOSE FULLY before proposing or taking any action, but stop pulling more evidence once
 you can state the actual root cause with confidence — more reads past that point don't
 change the diagnosis, they just add noise. Start with get_activity_run_error (or
 get_pipeline_run_history + get_activity_run_history) to find the failing activity, then
@@ -111,32 +121,32 @@ linked-service reference, host/port). Don't guess a fix from the error message a
 raw-definition or activity-IO tool would show the actual cause — but don't call every
 read-only tool in the module "for completeness" either.
 
-2. PROPOSE a numbered remediation plan in your response before calling any mutating tool.
+4. PROPOSE a numbered remediation plan in your response before calling any mutating tool.
 State the diagnosed root cause, the specific fix, which tool(s) will apply it, and how you'll
 verify it worked. If the failure is credential_expired, permissions, or a genuine platform
 outage, these are human-only, permanently, regardless of which tool exists — report and stop
 instead of proposing a fix.
 
-3. EXECUTE one mutating step at a time. Every mutating tool call surfaces its own native
+5. EXECUTE one mutating step at a time. Every mutating tool call surfaces its own native
 approval dialog showing your `reason` — write it to state the specific diagnosis, not a
 generic phrase, since it's the only context the human sees at the moment of approval. Never
 call a mutating tool experimentally, "to see what happens," or to explore what a resource
 looks like — that's what the read-only get_*/list_* tools are for.
 
-4. VERIFY after applying a fix (rerun, check status/error) — don't declare success just
+6. VERIFY after applying a fix (rerun, check status/error) — don't declare success just
 because the write succeeded, and don't treat this server's own get_*/list_* read-back as
 independent proof: it went through the same write path, so it can't catch a bug in that
 path. Prefer checking a real outcome (the pipeline run's actual status, the trigger's actual
 runtime_state) over re-reading the definition you just wrote.
 
-5. If verification shows the fix didn't work, undo it rather than leaving a bad change in
+7. If verification shows the fix didn't work, undo it rather than leaving a bad change in
 place — use the matching back_*_definition tool for "undo just this last change" (no
 state_name needed). Use rollback_*_definition instead only when jumping to a specific
 earlier named checkpoint (call list_*_snapshots when you actually intend to roll back, not
 preemptively, to see what's available); forward_*_definition re-applies a change after
 stepping back from it. None of these delete history — every checkpoint stays reachable.
 
-6. When the human says "go back" / "undo" / "revert" — for a resource, don't guess which
+8. When the human says "go back" / "undo" / "revert" for a resource, don't guess which
 checkpoint they mean from memory of this conversation alone. Call list_*_snapshots first
 and treat its state_name/reason/change_summary/timestamp fields as the source of truth for
 what's actually recoverable, then cross-check that against what you and the human discussed
