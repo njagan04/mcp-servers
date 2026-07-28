@@ -178,7 +178,10 @@ TOOLS = [
             },
             "required": ["resource_type", "name", "reason"],
         },
-        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True),
+        # Relative step (like `git checkout HEAD~1`): repeated calls with identical arguments move
+        # the cursor further each time, so this is NOT idempotent per the MCP spec's definition
+        # (contrast with rollback_resource_definition above, which targets an absolute state_name).
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True),
     ),
     Tool(
         name="forward_resource_definition",
@@ -203,6 +206,7 @@ TOOLS = [
             },
             "required": ["resource_type", "name", "reason"],
         },
-        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=True),
+        # Same reasoning as back_resource_definition above — relative step, not idempotent.
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True),
     ),
 ]

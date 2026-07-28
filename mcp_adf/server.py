@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolResult, TextContent, Tool
 
 
 #Custom imports for ADF tools
@@ -63,7 +63,7 @@ def _log_call_best_effort(*args, **kwargs) -> None:
 
 
 @server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def call_tool(name: str, arguments: dict) -> CallToolResult:
     fn = _TOOL_MAP.get(name)
     if fn is None:
         raise ValueError(f"Unknown tool: {name}")
@@ -76,8 +76,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     except Exception as exc:
         _log_call_best_effort(name, arguments, mutating=mutating,duration_ms=(time.monotonic() - start) * 1000, error=exc)
         raise
-    _log_call_best_effort(name, arguments, mutating=mutating,duration_ms=(time.monotonic() - start) * 1000, result=result)
-    return [TextContent(type="text", text=json.dumps(result))]
+    # Many tool functions signal a blocked write or a required human confirmation (e.g. the
+    # pre-delete rollback gate) by returning an {"error": ...}/{"requires_confirmation": ...}
+    # dict rather than raising — without this check those outcomes look identical to a real
+    # success at the protocol level (isError=False), which a non-content-sniffing caller
+    # (or the audit log) can't tell apart from an actual mutation having happened.
+    blocked = isinstance(result, dict) and "error" in result
+    requires_confirmation = isinstance(result, dict) and result.get("requires_confirmation") is True
+    _log_call_best_effort(
+        name, arguments, mutating=mutating, duration_ms=(time.monotonic() - start) * 1000,
+        result=result, blocked=blocked, requires_confirmation=requires_confirmation,
+    )
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(result))],
+        isError=blocked or requires_confirmation,
+    )
 
 
 async def run():
